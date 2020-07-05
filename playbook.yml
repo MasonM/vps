@@ -7,12 +7,44 @@
       apt:
         upgrade: dist
 
+    - name: Add masonm
+      become: yes
+      user:
+        name: masonm
+        shell: /bin/bash
+
+    - name: Create /home/masonm/.ssh/ directory
+      become: yes
+      file:
+        path: /home/masonm/.ssh
+        state: directory
+        mode: 0700
+        owner: masonm
+        group: masonm
+
     - name: Add SSH key to authorized_keys
+      become: yes
       lineinfile:
-        path: ~/.ssh/authorized_keys
+        path: /home/masonm/.ssh/authorized_keys
         line: ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAmwRIMq3fNgrV/kk2fMD6EHiJctoSL05GnkbXd/reSfM+E4z8+2klcy3HUfTZmiwWH7rwOKBnqMp9Cy4CuW1bOYdyaHeF7GMeZCZBc9bZkSSd9a5G+mRaZr8XH7j9WiDqk1sDNs7DNO5gBq2Z4Jj9rMAWJi44Gfhj/L2nS8lWZsMe/0nc2PQN87nGMcKiHpveFbCeRC/H53p6zDjbPhDsgTn/JgGEoesQPT5sfGH8gVK2DoJeEjGJHQdHMEBgWkypLizBRMpABTqa1sLzxKrVEJkIHx1AXCiUoLixvk8WV03FPF0YEJ2cwvPS6ut0Ym9xI5WzfUWSEX/t6iF4N5WK/w== masonm@masonm.local
         create: yes
         mode: 0600
+        owner: masonm
+        group: masonm
+
+    - name: Add masonm to sudoers
+      become: yes
+      copy:
+        content: masonm ALL=(ALL) NOPASSWD:ALL
+        dest: /etc/sudoers.d/masonm
+        mode: 0440
+
+    - name: Don't allow password authentication
+      become: yes
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: ^PasswordAuthentication yes
+        line: PasswordAuthentication no
 
     - name: Remove Apache
       become: yes
@@ -29,57 +61,62 @@
           - python
           - python-pip
           - git
+          - fail2ban
+
+    - name: Start Fail2Ban
+      become: yes
+      service:
+        name: fail2ban
+        state: started
 
     - name: Create apeye.org site configuration
       become: yes
       copy:
         content: |
           server {
-             listen 80;
-             listen 443 ssl;
-             root /var/www/apeye.org/docs;
-             index index.html;
-             server_name www.apeye.org apeye.org;
-             disable_symlinks off;
+            listen 80;
+            listen 443 ssl;
+            root /var/www/apeye.org/docs;
+            index index.html;
+            server_name www.apeye.org apeye.org;
+            disable_symlinks off;
 
-             location / {
-                try_files $uri $uri/ /index.html;
-                expires 12h;
-             }
+            location / {
+              try_files $uri $uri/ /index.html;
+              expires 12h;
+            }
 
-             ssl_certificate /etc/letsencrypt/live/apeye.org/fullchain.pem; # managed by Certbot
-             ssl_certificate_key /etc/letsencrypt/live/apeye.org/privkey.pem; # managed by Certbot
+            ssl_certificate /etc/letsencrypt/live/apeye.org/fullchain.pem; # managed by Certbot
+            ssl_certificate_key /etc/letsencrypt/live/apeye.org/privkey.pem; # managed by Certbot
 
-
-              if ($scheme != "https") {
-                  return 301 https://$host$request_uri;
-              } # managed by Certbot
+            if ($scheme != "https") {
+              return 301 https://$host$request_uri;
+            } # managed by Certbot
           }
 
           server {
-             listen 80;
-             listen 443 ssl;
-             root /var/www/apeye.org/examples/api.apeye.org;
-             server_name api.apeye.org;
+            listen 80;
+            listen 443 ssl;
+            root /var/www/apeye.org/examples/api.apeye.org;
+            server_name api.apeye.org;
 
-             location / {
-                try_files $uri @apeye;
-             }
+            location / {
+              try_files $uri @apeye;
+            }
 
-             location @apeye {
-                include fastcgi_params;
-                fastcgi_param PATH_INFO $fastcgi_script_name;
-                fastcgi_param SCRIPT_NAME '';
-                fastcgi_pass unix:/tmp/apeye-fcgi.sock;
-             }
+            location @apeye {
+              include fastcgi_params;
+              fastcgi_param PATH_INFO $fastcgi_script_name;
+              fastcgi_param SCRIPT_NAME '';
+              fastcgi_pass unix:/tmp/apeye-fcgi.sock;
+            }
 
-             ssl_certificate /etc/letsencrypt/live/apeye.org/fullchain.pem; # managed by Certbot
-             ssl_certificate_key /etc/letsencrypt/live/apeye.org/privkey.pem; # managed by Certbot
+            ssl_certificate /etc/letsencrypt/live/apeye.org/fullchain.pem; # managed by Certbot
+            ssl_certificate_key /etc/letsencrypt/live/apeye.org/privkey.pem; # managed by Certbot
 
-              if ($scheme != "https") {
-                  return 301 https://$host$request_uri;
-              } # managed by Certbot
-
+            if ($scheme != "https") {
+              return 301 https://$host$request_uri;
+            } # managed by Certbot
           }
         dest: /etc/nginx/sites-available/apeye.org
 
@@ -88,79 +125,79 @@
       copy:
         content: |
           server {
-             listen 80;
-             listen 443 ssl;
+            listen 80;
+            listen 443 ssl;
 
-             root /var/www/masonm.org;
-             index index.html index.htm index.php;
+            root /var/www/masonm.org;
+            index index.html index.htm index.php;
 
-             server_name www.masonm.org masonm.org;
+            server_name www.masonm.org masonm.org;
 
-             location / {
-                # First attempt to serve request as file, then
-                # as directory, then fall back to index.html
-                try_files $uri $uri/ /index.html;
-             }
+            location / {
+              # First attempt to serve request as file, then
+              # as directory, then fall back to index.html
+              try_files $uri $uri/ /index.html;
+            }
 
-             location ~* ^/elect.* {
-                rewrite ^ https://github.com/MasonM/django-elect permanent;
-             }
+            location ~* ^/elect.* {
+              rewrite ^ https://github.com/MasonM/django-elect permanent;
+            }
 
-             location ~* ^/conf.* {
-                rewrite ^  https://github.com/MasonM/django-conference permanent;
-             }
+            location ~* ^/conf.* {
+              rewrite ^  https://github.com/MasonM/django-conference permanent;
+            }
 
-             location ~* ^/resume$ {
-                rewrite ^ http://masonm.org/resume.pdf;
-             }
+            location ~* ^/resume$ {
+              rewrite ^ http://masonm.org/resume.pdf;
+            }
 
-             location ~* ^/linked.*in.* {
-                rewrite ^ http://www.linkedin.com/pub/mason-malone/13/a9a/350 permanent;
-             }
+            location ~* ^/linked.*in.* {
+              rewrite ^ http://www.linkedin.com/pub/mason-malone/13/a9a/350 permanent;
+            }
 
-             location /uncle_bob_travels {
-                autoindex on;
-             }
+            location /uncle_bob_travels {
+              autoindex on;
+            }
 
-             location /olivia {
-                autoindex on;
-             }
+            location /olivia {
+              autoindex on;
+            }
 
-             location /exercises {
-                autoindex on;
-             }
+            location /exercises {
+              autoindex on;
+            }
 
-             location ~ \.php$ {
-                fastcgi_pass 127.0.0.1:9000;
-                include snippets/fastcgi-php.conf;
-             }
+            location ~ \.php$ {
+              fastcgi_pass 127.0.0.1:9000;
+              include snippets/fastcgi-php.conf;
+            }
 
-             # Doku wiki
-             location /wiki {
-                try_files $uri $uri/ @dokuwiki;
-                location ~ /wiki/(conf/|bin/|inc/|install.php) { deny all; }
-                #Support for X-Accel-Redirect
-                location ~ /wiki/data/ { internal ; }
-             }
+            # Doku wiki
+            location /wiki {
+              try_files $uri $uri/ @dokuwiki;
+              location ~ /wiki/(conf/|bin/|inc/|install.php) { deny all; }
+              #Support for X-Accel-Redirect
+              location ~ /wiki/data/ { internal ; }
+            }
 
-             location @dokuwiki {
-                # rewrites "doku.php/" out of the URLs if you set the userwrite setting to .htaccess in dokuwiki config page
-                rewrite ^/wiki/_media/(.*) /wiki/lib/exe/fetch.php?media=$1 last;
-                rewrite ^/wiki/_detail/(.*) /wiki/lib/exe/detail.php?media=$1 last;
-                rewrite ^/wiki/_export/([^/]+)/(.*) /wiki/doku.php?do=export_$1&id=$2 last;
-                rewrite ^/wiki/(.*) /wiki/doku.php?id=$1&$args last;
-             }
+            location @dokuwiki {
+              # rewrites "doku.php/" out of the URLs if you set the userwrite setting to .htaccess in dokuwiki config page
+              rewrite ^/wiki/_media/(.*) /wiki/lib/exe/fetch.php?media=$1 last;
+              rewrite ^/wiki/_detail/(.*) /wiki/lib/exe/detail.php?media=$1 last;
+              rewrite ^/wiki/_export/([^/]+)/(.*) /wiki/doku.php?do=export_$1&id=$2 last;
+              rewrite ^/wiki/(.*) /wiki/doku.php?id=$1&$args last;
+            }
 
-             ssl_certificate /etc/letsencrypt/live/apeye.org/fullchain.pem; # managed by Certbot
-             ssl_certificate_key /etc/letsencrypt/live/apeye.org/privkey.pem; # managed by Certbot
+            ssl_certificate /etc/letsencrypt/live/apeye.org/fullchain.pem; # managed by Certbot
+            ssl_certificate_key /etc/letsencrypt/live/apeye.org/privkey.pem; # managed by Certbot
 
-              # Redirect non-https traffic to https
-              if ($scheme != "https") {
-                  return 301 https://$host$request_uri;
-              } # managed by Certbot
+            # Redirect non-https traffic to https
+            if ($scheme != "https") {
+              return 301 https://$host$request_uri;
+            } # managed by Certbot
           }
         dest: /etc/nginx/sites-available/masonm.org
-            
+
     - name: Create symlinks for the sites
       become: yes
       file:
@@ -170,15 +207,15 @@
       loop:
         - 'masonm.org'
         - 'apeye.org'
-            
+
     - name: Start php7.2-fpm
-      become: yes               
+      become: yes
       service:
-         name: php7.2-fpm
-         state: started
+        name: php7.2-fpm
+        state: started
 
     - name: Start nginx
-      become: yes               
+      become: yes
       service:
-         name: nginx
-         state: started
+        name: nginx
+        state: started
