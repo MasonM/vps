@@ -168,7 +168,7 @@
             }
 
             location ~ \.php$ {
-              fastcgi_pass 127.0.0.1:9000;
+              fastcgi_pass unix:/var/run/php/php7.2-fpm.sock;
               include snippets/fastcgi-php.conf;
             }
 
