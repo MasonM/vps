@@ -75,7 +75,7 @@
         content: |
           server {
             listen 80;
-            listen 443 ssl;
+            listen 443 ssl http2;
             root /var/www/apeye.org/docs;
             index index.html;
             server_name www.apeye.org apeye.org;
@@ -126,7 +126,7 @@
         content: |
           server {
             listen 80;
-            listen 443 ssl;
+            listen 443 ssl http2;
 
             root /var/www/masonm.org;
             index index.html index.htm index.php;
